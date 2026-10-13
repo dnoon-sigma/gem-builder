@@ -144,13 +144,13 @@ export type UpcomingWeek = { season: number; week: number; matchups: Matchup[] }
 export async function fetchUpcomingWeek(): Promise<UpcomingWeek> {
   let board = await getJson<Omit<Scoreboard, "events"> & { events: RawEvent[] }>(
     `${SITE}/scoreboard`,
-    300,
+    3600,
   );
   const allFinal = board.events.every((e) => e.status.type.name === "STATUS_FINAL");
   if (allFinal) {
     board = await getJson(
       `${SITE}/scoreboard?week=${board.week.number + 1}&seasontype=2`,
-      300,
+      3600,
     );
   }
 

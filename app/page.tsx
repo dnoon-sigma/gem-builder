@@ -1,7 +1,7 @@
 import { fetchUpcomingWeek, type Matchup, type TeamLine } from "@/lib/espn";
 
-// Odds move, so re-fetch from ESPN at most every 5 minutes.
-export const revalidate = 300;
+// Odds move, so re-fetch from ESPN at most every hour.
+export const revalidate = 3600;
 
 const TZ = "America/New_York";
 
