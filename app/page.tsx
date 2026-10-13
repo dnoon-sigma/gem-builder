@@ -1,6 +1,7 @@
 import { fetchUpcomingWeek, type Matchup, type TeamLine } from "@/lib/espn";
 import { lopsided, winProb } from "@/lib/odds";
 import InjuryFeed from "@/components/InjuryFeed";
+import TeamInjuries from "@/components/TeamInjuries";
 
 // Odds move, so re-fetch from ESPN at most every hour.
 export const revalidate = 3600;
@@ -19,17 +20,7 @@ const kickoffLabel = (iso: string) => {
 };
 
 function Team({ t, side }: { t: TeamLine; side: "away" | "home" }) {
-  return (
-    <div className="flex min-w-0 flex-col items-center gap-0.5" title={t.name}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {t.logo && <img src={t.logo} alt="" className="h-10 w-10 object-contain" />}
-      <span className="text-base font-semibold leading-none">{t.abbr}</span>
-      <span className="text-[11px] leading-none text-gray-500">
-        {t.record ? `${t.record} · ` : ""}
-        {side}
-      </span>
-    </div>
-  );
+  return <TeamInjuries abbr={t.abbr} name={t.name} logo={t.logo} record={t.record} side={side} />;
 }
 
 function Odds({ ml, prob }: { ml?: string; prob?: number }) {

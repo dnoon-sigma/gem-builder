@@ -17,7 +17,8 @@ export type Designation =
   | "out"
   | "injured_reserve"
   | "pup"
-  | "suspended";
+  | "suspended"
+  | "no_designation";
 
 export function parseDesignation(raw: string): Designation | undefined {
   const s = raw.toLowerCase();
@@ -91,8 +92,13 @@ export async function applyInjuryUpdate(
   },
 ) {
   const now = args.now ?? new Date();
-  const designation = parseDesignation(args.update.designation);
-  if (!designation) return { status: "skipped" as const, reason: "unknown designation" };
+  // "Unknown"/blank designation with practice news is still worth recording
+  // (shown in the team's injury list), but it never creates an alert.
+  const parsed = parseDesignation(args.update.designation);
+  const practice = parsePractice(args.update.practice_status);
+  const practiceOnly = !parsed && (practice !== "unknown" || Boolean(args.update.injury));
+  if (!parsed && !practiceOnly) return { status: "skipped" as const, reason: "unknown designation" };
+  const designation: Designation = parsed ?? "no_designation";
 
   // Latest roster snapshot for the team
   const { data: latest } = await db
@@ -135,6 +141,7 @@ export async function applyInjuryUpdate(
     .eq("player_id", entry.player_id)
     .eq("season", latest.season)
     .eq("week", latest.week)
+    .neq("designation", "no_designation")
     .order("reported_at", { ascending: false })
     .limit(1);
   const previous = (prev?.[0]?.designation as Designation | undefined) ?? undefined;
@@ -148,7 +155,7 @@ export async function applyInjuryUpdate(
       season: latest.season,
       week: latest.week,
       designation,
-      practice: parsePractice(args.update.practice_status),
+      practice,
       injury: args.update.injury || null,
       notes: args.update.summary || null,
       source_url: args.sourceUrl ?? null,
@@ -163,6 +170,7 @@ export async function applyInjuryUpdate(
     throw error;
   }
 
+  if (designation === "no_designation") return { status: "recorded" as const, alert: false };
   if (previous === designation) return { status: "recorded" as const, alert: false };
   if (!previous && designation === "healthy") return { status: "recorded" as const, alert: false };
 
