@@ -6,11 +6,13 @@ import { createMonitor, parallelEnabled, updateMonitorFrequency } from "@/lib/pa
 
 export const maxDuration = 120;
 
-// Creates a monitor for each team that lacks one, and moves each team's
-// monitor between the daily and fast cadence depending on how close its next
-// kickoff is.
-//   ?team=KC   only this team (use for a first test)
-//   ?dry=1     show what would change without calling Parallel
+// Moves each team's existing monitor between the daily and fast cadence
+// depending on how close its next kickoff is. Scheduled runs (no parameters)
+// only ever update monitors that already exist; creating monitors costs money,
+// so it has to be asked for explicitly:
+//   ?team=DEN      create/update just this team (use for a first test)
+//   ?create=all    create monitors for every team that lacks one
+//   ?dry=1         show what would change without calling Parallel
 export async function GET(request: Request) {
   if (!isAuthorized(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -18,6 +20,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const only = url.searchParams.get("team")?.toUpperCase();
   const dry = url.searchParams.get("dry") === "1";
+  const mayCreate = Boolean(only) || url.searchParams.get("create") === "all";
 
   if (!dry && !parallelEnabled()) {
     return NextResponse.json({ error: "PARALLEL_ENABLED is not true" }, { status: 409 });
@@ -50,7 +53,13 @@ export async function GET(request: Request) {
   for (const team of (teams ?? []).filter((t) => !only || t.abbr === only)) {
     const frequency = desiredFrequency(nextKickoff.get(team.id), now);
     const current = existing.get(team.id);
-    const action = !current ? "create" : current.frequency !== frequency ? "update" : "none";
+    const action = !current
+      ? mayCreate
+        ? "create"
+        : "skip (no monitor)"
+      : current.frequency !== frequency
+        ? "update"
+        : "none";
     const row = { team: team.abbr, action, frequency, from: current?.frequency };
 
     if (!dry && action === "create") {
