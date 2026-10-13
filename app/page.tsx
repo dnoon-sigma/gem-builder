@@ -1,5 +1,6 @@
 import { fetchUpcomingWeek, type Matchup, type TeamLine } from "@/lib/espn";
 import { lopsided, winProb } from "@/lib/odds";
+import InjuryFeed from "@/components/InjuryFeed";
 
 // Odds move, so re-fetch from ESPN at most every hour.
 export const revalidate = 3600;
@@ -112,7 +113,8 @@ export default async function Home() {
   const book = matchups.find((m) => m.book)?.book;
 
   return (
-    <main className="mx-auto max-w-[1800px] px-6 py-5">
+    <div className="lg:flex">
+    <main className="min-w-0 flex-1 px-6 py-5">
       <header className="mb-4 flex items-baseline justify-between">
         <h1 className="text-xl font-semibold">Week {week} matchups</h1>
         <p className="text-xs text-gray-500">
@@ -123,7 +125,7 @@ export default async function Home() {
       {matchups.length === 0 ? (
         <p className="text-gray-400">No games scheduled.</p>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {matchups.map((g) => (
             <GameCard key={g.id} g={g} />
           ))}
@@ -134,5 +136,9 @@ export default async function Home() {
         Odds are informational and may change. 21+. Gambling problem? Call 1-800-GAMBLER.
       </footer>
     </main>
+    <aside className="border-t border-white/10 lg:sticky lg:top-0 lg:h-screen lg:w-80 lg:shrink-0 lg:border-l lg:border-t-0">
+      <InjuryFeed />
+    </aside>
+    </div>
   );
 }
