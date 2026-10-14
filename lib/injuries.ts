@@ -49,6 +49,22 @@ const normalize = (name: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+// Exact normalized name first; otherwise last name + first initial (handles
+// Pat/Patrick, Mike/Michael, ...) as long as exactly one rostered player fits.
+function findByName<T extends { players: { full_name: string } }>(rows: T[], name: string) {
+  const wanted = normalize(name);
+  const exact = rows.find((r) => normalize(r.players.full_name) === wanted);
+  if (exact) return exact;
+  const [first = "", ...rest] = wanted.split(" ");
+  const last = rest.join(" ");
+  if (!first || !last) return undefined;
+  const near = rows.filter((r) => {
+    const [f = "", ...l] = normalize(r.players.full_name).split(" ");
+    return l.join(" ") === last && f[0] === first[0];
+  });
+  return near.length === 1 ? near[0] : undefined;
+}
+
 type RosterRow = {
   player_id: number;
   depth_position: string | null;
@@ -89,6 +105,9 @@ export async function applyInjuryUpdate(
     eventId: string;
     sourceUrl?: string;
     now?: Date;
+    // Loading the current state of the league: record the report but never
+    // create alerts or replacement rows.
+    baseline?: boolean;
   },
 ) {
   const now = args.now ?? new Date();
@@ -120,8 +139,7 @@ export async function applyInjuryUpdate(
     .returns<RosterRow[]>();
   const rows = roster ?? [];
 
-  const wanted = normalize(args.update.player_name);
-  const entry = rows.find((r) => normalize(r.players.full_name) === wanted);
+  const entry = findByName(rows, args.update.player_name);
   if (!entry) return { status: "skipped" as const, reason: `no roster match for ${args.update.player_name}` };
 
   // Team's next game
@@ -170,7 +188,9 @@ export async function applyInjuryUpdate(
     throw error;
   }
 
-  if (designation === "no_designation") return { status: "recorded" as const, alert: false };
+  if (args.baseline || designation === "no_designation") {
+    return { status: "recorded" as const, alert: false };
+  }
   if (previous === designation) return { status: "recorded" as const, alert: false };
   if (!previous && designation === "healthy") return { status: "recorded" as const, alert: false };
 
@@ -179,7 +199,7 @@ export async function applyInjuryUpdate(
   let replacementId: number | null = null;
   if (SEVERE.has(designation) || designation === "questionable") {
     const named = args.update.replacement_player
-      ? rows.find((r) => normalize(r.players.full_name) === normalize(args.update.replacement_player!))
+      ? findByName(rows, args.update.replacement_player)
       : undefined;
     const byDepth = rows
       .filter(
