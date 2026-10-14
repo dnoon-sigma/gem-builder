@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
@@ -19,6 +19,7 @@ type Report = {
   injury: string | null;
   notes: string | null;
   source_url: string | null;
+  source_event_id: string | null;
   reported_at: string;
   player: { id: number; full_name: string; position: string | null } | null;
 };
@@ -83,6 +84,23 @@ export default function TeamInjuries({ abbr, name, logo, record, side }: Props) 
   const [open, setOpen] = useState(false);
   const [reports, setReports] = useState<Report[] | null>(null);
   const [error, setError] = useState(false);
+  const [sort, setSort] = useState<"recent" | "severity">("recent");
+
+  const sorted = useMemo(() => {
+    // Updates our monitors reported come first, newest first. The starting
+    // baseline (loaded in bulk, so all stamped about the same time) follows.
+    const isBaseline = (r: Report) => r.source_event_id?.startsWith("baseline-") ?? false;
+    const byTime = (a: Report, b: Report) => +new Date(b.reported_at) - +new Date(a.reported_at);
+    const bySeverity = (a: Report, b: Report) =>
+      (SEVERITY[a.designation] ?? 9) - (SEVERITY[b.designation] ?? 9);
+    return [...(reports ?? [])].sort(
+      sort === "recent"
+        ? (a, b) =>
+            Number(isBaseline(a)) - Number(isBaseline(b)) ||
+            (isBaseline(a) ? bySeverity(a, b) || byTime(a, b) : byTime(a, b))
+        : (a, b) => bySeverity(a, b) || byTime(a, b),
+    );
+  }, [reports, sort]);
 
   useEffect(() => {
     if (!open) return;
@@ -96,7 +114,7 @@ export default function TeamInjuries({ abbr, name, logo, record, side }: Props) 
       const { data, error } = await db
         .from("injury_reports")
         .select(
-          "id, designation, practice, injury, notes, source_url, reported_at, player:players(id, full_name, position), team:teams!inner(abbr)",
+          "id, designation, practice, injury, notes, source_url, source_event_id, reported_at, player:players(id, full_name, position), team:teams!inner(abbr)",
         )
         .eq("team.abbr", abbr)
         .order("reported_at", { ascending: false })
@@ -111,11 +129,6 @@ export default function TeamInjuries({ abbr, name, logo, record, side }: Props) 
         seen.add(r.player.id);
         return true;
       });
-      latest.sort(
-        (a, b) =>
-          (SEVERITY[a.designation] ?? 9) - (SEVERITY[b.designation] ?? 9) ||
-          +new Date(b.reported_at) - +new Date(a.reported_at),
-      );
       setReports(latest);
     })();
 
@@ -179,6 +192,31 @@ export default function TeamInjuries({ abbr, name, logo, record, side }: Props) 
                 </button>
               </div>
 
+              {reports && reports.length > 1 && (
+                <div className="flex items-center gap-2 border-b border-white/10 px-5 py-2 text-xs">
+                  <span className="text-gray-500">Sort by</span>
+                  {(
+                    [
+                      ["recent", "Most recent"],
+                      ["severity", "Most severe"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSort(key)}
+                      className={`rounded-full px-2.5 py-1 ${
+                        sort === key
+                          ? "bg-white/15 text-white"
+                          : "text-gray-400 hover:bg-white/10 hover:text-gray-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="overflow-y-auto">
                 {error && <p className="p-5 text-sm text-red-300">Couldn&apos;t load the report.</p>}
                 {!error && reports === null && <p className="p-5 text-sm text-gray-500">Loading…</p>}
@@ -188,7 +226,7 @@ export default function TeamInjuries({ abbr, name, logo, record, side }: Props) 
                   </p>
                 )}
                 <ul className="divide-y divide-white/5">
-                  {reports?.map((r) => (
+                  {sorted.map((r) => (
                     <li key={r.id} className="px-5 py-3.5">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
@@ -208,7 +246,7 @@ export default function TeamInjuries({ abbr, name, logo, record, side }: Props) 
                         {PRACTICE[r.practice] && (
                           <span className={PRACTICE_TONE[r.practice]}>{PRACTICE[r.practice]}</span>
                         )}
-                        <span className="text-gray-600">{ago(r.reported_at)}</span>
+                        <span className="text-gray-500">Updated {ago(r.reported_at)}</span>
                       </div>
                       {r.notes && <p className="mt-1 text-xs leading-relaxed text-gray-500">{r.notes}</p>}
                       {r.source_url && (

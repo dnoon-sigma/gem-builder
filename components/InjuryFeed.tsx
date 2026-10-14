@@ -54,6 +54,9 @@ const IMPACT: Record<Row["impact"], string> = {
   low: "bg-gray-500",
 };
 
+const logoUrl = (abbr: string) =>
+  `https://a.espncdn.com/i/teamlogos/nfl/500/${abbr.toLowerCase()}.png`;
+
 function ago(iso: string) {
   const s = Math.max(1, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   if (s < 60) return "just now";
@@ -128,8 +131,19 @@ export default function InjuryFeed() {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {r.player?.full_name ?? "Unknown player"}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {r.team && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={logoUrl(r.team.abbr)}
+                          alt=""
+                          title={r.team.abbr}
+                          className="h-5 w-5 shrink-0 object-contain"
+                        />
+                      )}
+                      <span className="truncate text-sm font-medium">
+                        {r.player?.full_name ?? "Unknown player"}
+                      </span>
                     </span>
                     <span className="shrink-0 text-[11px] text-gray-500">{ago(r.created_at)}</span>
                   </div>
